@@ -7,7 +7,7 @@ def fix_grammar(text, lang):
     if lang == 'en':
         model_url = "https://api-inference.huggingface.co/models/pszemraj/flan-t5-base-grammar-synthesis"
     elif lang == 'bn':
-        model_url = "https://api-inference.huggingface.co/models/sagor/bangla-bert-base"  # fallback; won't fix grammar but prevent error
+        return text  # Bangla grammar fix currently unsupported
     else:
         return text
 
