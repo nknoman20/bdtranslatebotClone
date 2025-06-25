@@ -1,10 +1,10 @@
 import os
 import logging
-import requests
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Dispatcher, MessageHandler, Filters
 from googletrans import Translator
+from grammar_fixer import fix_grammar  # ✅ USE FROM grammar_fixer.py
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -21,26 +21,6 @@ app = Flask(__name__)
 bot = Bot(token=TOKEN)
 translator = Translator()
 dispatcher = Dispatcher(bot, None, use_context=True)
-
-# Grammar Fix Function
-def fix_grammar(text, lang):
-    if lang == 'bn':
-        model_url = "https://api-inference.huggingface.co/models/csebuetnlp/banglat5"
-    elif lang == 'en':
-        model_url = "https://api-inference.huggingface.co/models/vennify/t5-base-grammar-correction"
-    else:
-        return text  # unsupported language
-
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {"inputs": text}
-
-    try:
-        response = requests.post(model_url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-        return response.json()[0]['generated_text']
-    except Exception as e:
-        logger.error("Grammar fix error: %s", e)
-        return text
 
 # General message handler
 def handle_message(update, context):
