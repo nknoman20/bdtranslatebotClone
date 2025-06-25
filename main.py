@@ -1,67 +1,66 @@
 import os
 import logging
+import requests
 from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+from telegram.ext import Dispatcher, MessageHandler, Filters
 from googletrans import Translator
-from grammar_fixer import fix_grammar
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Token from environment
+# Tokens
 TOKEN = os.getenv("BOT_TOKEN")
-if not TOKEN:
-    raise RuntimeError("BOT_TOKEN environment variable not set!")
+HF_TOKEN = os.getenv("HF_TOKEN")
+if not TOKEN or not HF_TOKEN:
+    raise RuntimeError("BOT_TOKEN or HF_TOKEN is missing!")
 
 # Flask and Bot setup
-bot = Bot(token=TOKEN)
 app = Flask(__name__)
-translator = Translator(service_urls=['translate.googleapis.com'])
-
-# Dispatcher
+bot = Bot(token=TOKEN)
+translator = Translator()
 dispatcher = Dispatcher(bot, None, use_context=True)
 
-# General message handler with grammar fix and translate
+# Grammar Fix Function
+def fix_grammar(text, lang):
+    if lang == 'bn':
+        model_url = "https://api-inference.huggingface.co/models/csebuetnlp/banglat5"
+    elif lang == 'en':
+        model_url = "https://api-inference.huggingface.co/models/vennify/t5-base-grammar-correction"
+    else:
+        return text  # unsupported language
+
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    payload = {"inputs": text}
+
+    try:
+        response = requests.post(model_url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()[0]['generated_text']
+    except Exception as e:
+        logger.error("Grammar fix error: %s", e)
+        return text
+
+# General message handler
 def handle_message(update, context):
     text = update.message.text
     lang = translator.detect(text).lang
     dest_lang = 'bn' if lang == 'en' else 'en'
 
-    fixed_text = fix_grammar(text, lang)
+    logger.info(f"Received: {text} | Lang: {lang} → {dest_lang}")
+
     try:
-        translated = translator.translate(fixed_text, dest=dest_lang).text
-        translated = fix_grammar(translated, dest_lang)
-        update.message.reply_text(translated)
+        fixed_input = fix_grammar(text, lang)
+        translated = translator.translate(fixed_input, dest=dest_lang).text
+        fixed_output = fix_grammar(translated, dest_lang)
+        update.message.reply_text(fixed_output)
     except Exception as e:
-        update.message.reply_text("❌ Translation failed.")
         logger.error(f"Translation error: {e}")
-
-# /translate command handler
-def translate_command(update, context):
-    if not context.args:
-        update.message.reply_text(
-            "⚠️ দয়া করে /translate এর পরে কিছু লিখুন।\nউদাহরণ: `/translate Hello`", 
-            parse_mode="Markdown"
-        )
-        return
-    text = ' '.join(context.args)
-    lang = translator.detect(text).lang
-    dest_lang = 'bn' if lang == 'en' else 'en'
-
-    fixed_text = fix_grammar(text, lang)
-    try:
-        translated = translator.translate(fixed_text, dest=dest_lang).text
-        translated = fix_grammar(translated, dest_lang)
-        update.message.reply_text(f"🔁 {translated}")
-    except Exception as e:
         update.message.reply_text("❌ Translation failed.")
-        logger.error(f"Command translation error: {e}")
 
-# Add handlers
+# Add message handler only (no /translate)
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-dispatcher.add_handler(CommandHandler("translate", translate_command))
 
 # Webhook endpoint
 @app.route(f"/{TOKEN}", methods=["POST"])
@@ -70,7 +69,7 @@ def webhook():
     dispatcher.process_update(update)
     return "OK", 200
 
-# Health check route
+# Status route
 @app.route("/", methods=["GET"])
 def index():
     return "BD Translate Bot is live!", 200
