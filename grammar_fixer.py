@@ -9,15 +9,13 @@ def fix_grammar(text, lang):
     elif lang == 'en':
         model_url = "https://api-inference.huggingface.co/models/vennify/t5-base-grammar-correction"
     else:
-        return text  # unsupported language
+        return text
 
     headers = {
         "Authorization": f"Bearer {HUGGINGFACE_TOKEN}"
     }
-    payload = {"inputs": text}
-
     try:
-        response = requests.post(model_url, headers=headers, json=payload)
+        response = requests.post(model_url, headers=headers, json={"inputs": text})
         response.raise_for_status()
         return response.json()[0]['generated_text']
     except Exception as e:

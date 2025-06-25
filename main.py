@@ -18,7 +18,7 @@ if not TOKEN:
 # Flask and Bot setup
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
-translator = Translator()
+translator = Translator(service_urls=['translate.googleapis.com'])
 
 # Dispatcher
 dispatcher = Dispatcher(bot, None, use_context=True)
@@ -29,12 +29,9 @@ def handle_message(update, context):
     lang = translator.detect(text).lang
     dest_lang = 'bn' if lang == 'en' else 'en'
 
-    # Grammar fix before translation (input side)
     fixed_text = fix_grammar(text, lang)
-
     try:
         translated = translator.translate(fixed_text, dest=dest_lang).text
-        # Grammar fix after translation (output side)
         translated = fix_grammar(translated, dest_lang)
         update.message.reply_text(translated)
     except Exception as e:
@@ -53,12 +50,9 @@ def translate_command(update, context):
     lang = translator.detect(text).lang
     dest_lang = 'bn' if lang == 'en' else 'en'
 
-    # Grammar fix before translation (input side)
     fixed_text = fix_grammar(text, lang)
-
     try:
         translated = translator.translate(fixed_text, dest=dest_lang).text
-        # Grammar fix after translation (output side)
         translated = fix_grammar(translated, dest_lang)
         update.message.reply_text(f"🔁 {translated}")
     except Exception as e:
